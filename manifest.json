@@ -1,0 +1,9 @@
+{
+  "name": "Learn & Build — 120-Day Command Center",
+  "short_name": "Learn & Build",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#080d18",
+  "theme_color": "#0b1020",
+  "description": "A 120-day learning, building and shipping dashboard."
+}

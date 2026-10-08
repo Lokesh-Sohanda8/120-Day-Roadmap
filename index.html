@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="description" content="A 120-day Learn → Practice → Build → Ship → Reflect learning dashboard." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <title>Learn & Build — 120-Day Command Center</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand">
+        <div class="brand-mark">LB</div>
+        <div><strong>Learn & Build</strong><span>120-day command center</span></div>
+      </div>
+
+      <nav class="nav-tabs" aria-label="Sections">
+        <button class="nav-tab active" data-view="dashboard">Dashboard</button>
+        <button class="nav-tab" data-view="roadmap">Roadmap</button>
+        <button class="nav-tab" data-view="projects">Projects</button>
+        <button class="nav-tab" data-view="reviews">Reviews</button>
+        <button class="nav-tab" data-view="knowledge">Knowledge</button>
+        <button class="nav-tab" data-view="journal">Journal</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <div class="eyebrow">THE SYSTEM</div>
+        <h3>Learn → Practice → Build → Ship → Reflect</h3>
+        <p>Course learning feeds projects. Projects create evidence. Reviews keep the knowledge alive.</p>
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="exportBtn" class="ghost-btn">Export backup</button>
+        <label class="ghost-btn file-btn">Import backup<input id="importInput" type="file" accept="application/json" /></label>
+        <button id="resetBtn" class="danger-btn">Reset all progress</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">PERSONAL LEARNING SYSTEM</div>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="top-actions">
+          <button id="themeBtn" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">☼</button>
+          <button id="settingsBtn" class="secondary-btn">Settings</button>
+        </div>
+      </header>
+
+      <section id="dashboardView" class="view active-view">
+        <div class="hero-grid">
+          <div class="hero-card">
+            <div class="hero-copy">
+              <div class="eyebrow">NEXT UP</div>
+              <h2 id="todayHeadline">Day 1 — Start strong.</h2>
+              <p id="todaySubline">Your next open day appears here.</p>
+              <div class="hero-actions">
+                <button id="openTodayBtn" class="primary-btn">Open today</button>
+                <button id="weeklyReviewBtn" class="secondary-btn">Open weekly review</button>
+              </div>
+            </div>
+            <div class="progress-orb">
+              <svg viewBox="0 0 120 120" class="progress-ring" aria-hidden="true">
+                <circle class="ring-bg" cx="60" cy="60" r="48"></circle>
+                <circle id="ringProgress" class="ring-progress" cx="60" cy="60" r="48"></circle>
+              </svg>
+              <div class="ring-label"><strong id="ringPct">0%</strong><span>days done</span></div>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card"><span>Completed days</span><strong id="completedDays">0 / 120</strong><small id="completedDaysPct">0%</small></div>
+            <div class="stat-card"><span>Current streak</span><strong id="streakCount">0 days</strong><small id="longestStreak">Longest: 0</small></div>
+            <div class="stat-card"><span>Total time</span><strong id="hoursLogged">0h</strong><small id="hoursBreakdown">Learn 0h · Build 0h · Rev 0h</small></div>
+            <div class="stat-card"><span>Milestones</span><strong id="milestoneCount">0 / 8</strong><small id="milestoneNext">Next: Day 20</small></div>
+          </div>
+        </div>
+
+        <div class="three-col-section">
+          <div class="panel-card today-focus-panel" id="todayFocusCard"></div>
+          <div class="panel-card previous-card" id="previousSummaryCard"></div>
+          <div class="panel-card revision-card" id="revisionQueueCard"></div>
+        </div>
+
+        <div class="section-heading"><div><div class="eyebrow">PHASE HEALTH</div><h2>Where your time is going</h2></div></div>
+        <div id="phaseProgress" class="phase-grid"></div>
+
+        <div class="section-heading"><div><div class="eyebrow">MOMENTUM</div><h2>120-day activity</h2></div><button id="openHeatmapBtn" class="link-btn">Jump to roadmap →</button></div>
+        <div class="panel-card heatmap-panel"><div id="heatmap" class="heatmap"></div><div class="heatmap-legend"><span>Open</span><i class="hm open"></i><i class="hm partial"></i><i class="hm done"></i><span>Complete</span><span class="heatmap-note">Each square is one day. Click a day to open it.</span></div></div>
+
+        <div class="section-heading"><div><div class="eyebrow">BUILDING</div><h2>Projects</h2></div><button id="newProjectBtn" class="secondary-btn">+ New project</button></div>
+        <div id="dashboardProjects" class="project-mini-grid"></div>
+
+        <div class="section-heading compact-heading"><div><div class="eyebrow">RECENT</div><h2>Recent days</h2></div><button class="link-btn" data-view="roadmap">See full roadmap →</button></div>
+        <div id="recentDays" class="recent-days"></div>
+      </section>
+
+      <section id="roadmapView" class="view">
+        <div class="toolbar">
+          <div class="search-wrap"><input id="searchInput" type="search" placeholder="Search days, topics, tasks..." /></div>
+          <select id="phaseFilter" aria-label="Filter by phase"><option value="all">All phases</option></select>
+          <select id="statusFilter" aria-label="Filter by status"><option value="all">All status</option><option value="completed">Completed</option><option value="open">Open</option><option value="skipped">Skipped</option></select>
+        </div>
+        <div class="roadmap-summary" id="roadmapSummary"></div>
+        <div id="roadmapList" class="roadmap-list"></div>
+      </section>
+
+      <section id="projectsView" class="view">
+        <div class="page-head-row"><div><div class="eyebrow">SHIP SOMETHING</div><h2>Project pipeline</h2><p>Ideas become evidence through small, deployable iterations.</p></div><button id="newProjectBtn2" class="primary-btn">+ New project</button></div>
+        <div id="projectsList" class="projects-grid"></div>
+      </section>
+
+      <section id="reviewsView" class="view">
+        <div class="page-head-row"><div><div class="eyebrow">SPACED REPETITION</div><h2>Review center</h2><p>Use 1 → 3 → 7 → 21 day reviews to keep important concepts alive.</p></div><div class="review-score" id="reviewScore"></div></div>
+        <div id="revisionDue" class="review-due-panel"></div>
+        <div class="section-heading compact-heading"><div><div class="eyebrow">WEEKLY</div><h2>Weekly reviews</h2></div></div>
+        <div id="weeklyReviews" class="weekly-grid"></div>
+      </section>
+
+      <section id="knowledgeView" class="view">
+        <div class="page-head-row"><div><div class="eyebrow">YOUR SECOND BRAIN</div><h2>Knowledge vault</h2><p>Search the explanations, insights and questions you created during the journey.</p></div><button id="addKnowledgeBtn" class="secondary-btn">+ Knowledge note</button></div>
+        <div class="knowledge-layout">
+          <div><div class="toolbar simple-toolbar"><input id="knowledgeSearch" type="search" placeholder="Search your notes, topics, tags..." /><select id="knowledgeFilter"><option value="all">All</option><option value="pinned">Pinned</option><option value="questions">Open questions</option></select></div><div id="knowledgeList" class="knowledge-list"></div></div>
+          <aside class="questions-panel"><div class="eyebrow">QUESTION BACKLOG</div><h3>Things to resolve</h3><div id="questionsList"></div></aside>
+        </div>
+      </section>
+
+      <section id="journalView" class="view">
+        <div class="journal-head"><div><div class="eyebrow">LEARNING LOG</div><h2>Daily journal</h2><p>Every meaningful note you record remains searchable and exportable.</p></div><div class="journal-count"><strong id="journalEntryCount">0</strong><span>entries</span></div></div>
+        <div id="journalList" class="journal-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="dayModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="dayModalTitle">
+    <div class="modal-backdrop" data-close="day"></div>
+    <div class="modal-card xl-modal">
+      <div class="modal-header"><div><div class="eyebrow" id="modalDayLabel">DAY 1</div><h2 id="dayModalTitle">Day 1</h2></div><button class="icon-btn" data-close="day" aria-label="Close">×</button></div>
+      <div id="dayModalMeta" class="day-meta"></div>
+      <div id="dayResources" class="resource-bar"></div>
+      <div class="day-flow-grid">
+        <div class="day-flow-step learn-step"><span class="step-kicker">01 · LEARN</span><h3>Understand the idea</h3><p id="learnPrompt" class="flow-prompt"></p></div>
+        <div class="day-flow-step practice-step"><span class="step-kicker">02 · PRACTICE</span><h3>Use it yourself</h3><p id="practicePrompt" class="flow-prompt"></p></div>
+        <div class="day-flow-step build-step"><span class="step-kicker">03 · BUILD</span><h3>Create a small artifact</h3><p id="buildPrompt" class="flow-prompt"></p></div>
+        <div class="day-flow-step ship-step"><span class="step-kicker">04 · SHIP</span><h3>Leave evidence</h3><p id="shipPrompt" class="flow-prompt"></p></div>
+      </div>
+
+      <div class="task-section"><div class="section-mini-title">CORE CHECKLIST</div><div id="dayTasks" class="task-list"></div></div>
+
+      <div class="notes-grid">
+        <label class="span-2"><span>What I learned</span><textarea id="learnedInput" rows="5" placeholder="Explain the useful idea in your own words."></textarea></label>
+        <label><span>What I practiced</span><textarea id="practiceInput" rows="4" placeholder="Exercises, queries, experiments, debugging..." ></textarea></label>
+        <label><span>What I built</span><textarea id="builtInput" rows="4" placeholder="A script, UI, dashboard, mini-app, model, etc."></textarea></label>
+        <label><span>What I shipped / published</span><textarea id="shippedInput" rows="4" placeholder="GitHub commit, deployed page, demo, screenshot, post..." ></textarea></label>
+        <label><span>Blockers / notes</span><textarea id="blockersInput" rows="4" placeholder="Confusion, distractions, things to revisit..." ></textarea></label>
+        <label class="span-2"><span>Questions to resolve — one per line</span><textarea id="questionsInput" rows="3" placeholder="What still doesn't make sense?"></textarea></label>
+      </div>
+
+      <div class="hours-grid">
+        <label><span>Learning hours</span><input id="learningHoursInput" type="number" min="0" max="24" step="0.25" placeholder="1.5" /></label>
+        <label><span>Building hours</span><input id="buildingHoursInput" type="number" min="0" max="24" step="0.25" placeholder="1.0" /></label>
+        <label><span>Revision hours</span><input id="revisionHoursInput" type="number" min="0" max="24" step="0.25" placeholder="0.5" /></label>
+        <label class="project-link-field"><span>Linked project</span><select id="dayProjectInput"><option value="">No project</option></select></label>
+      </div>
+
+      <label class="pin-row"><input id="pinKnowledgeInput" type="checkbox" /><span>Pin today’s learning note to my Knowledge Vault</span></label>
+
+      <div class="modal-footer modal-footer-wrap">
+        <span id="saveStatus" class="save-status">Saved automatically</span>
+        <div class="modal-footer-actions"><button id="skipDayBtn" class="ghost-btn">Skip day</button><button id="reopenDayBtn" class="ghost-btn hidden">Reopen</button><button id="completeDayBtn" class="primary-btn">Mark day complete</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-backdrop" data-close="settings"></div>
+    <div class="modal-card"><div class="modal-header"><div><div class="eyebrow">SETUP</div><h2 id="settingsTitle">Tracker settings</h2></div><button class="icon-btn" data-close="settings" aria-label="Close">×</button></div>
+      <label class="setting-field"><span>Start date</span><input id="startDateInput" type="date" /></label>
+      <label class="setting-field"><span>Daily target (hours)</span><input id="dailyTargetInput" type="number" min="0" max="24" step="0.5" /></label>
+      <label class="setting-field"><span>Roadmap pace</span><select id="paceInput"><option value="sequential">Sequential — one day at a time</option><option value="calendar">Calendar — show the scheduled day</option></select></label>
+      <p class="muted">Your notes, projects and progress are stored locally in this browser. Export a JSON backup regularly, especially before changing devices.</p>
+      <div class="modal-footer"><button id="saveSettingsBtn" class="primary-btn">Save settings</button></div>
+    </div>
+  </div>
+
+  <div id="projectModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="projectTitle">
+    <div class="modal-backdrop" data-close="project"></div>
+    <div class="modal-card"><div class="modal-header"><div><div class="eyebrow">PROJECT</div><h2 id="projectTitle">New project</h2></div><button class="icon-btn" data-close="project" aria-label="Close">×</button></div>
+      <label class="setting-field"><span>Name</span><input id="projectNameInput" type="text" placeholder="e.g. AI Study Companion" /></label>
+      <label class="setting-field"><span>User problem</span><textarea id="projectProblemInput" rows="3" placeholder="Who is this for and what painful job does it solve?"></textarea></label>
+      <label class="setting-field"><span>Status</span><select id="projectStatusInput"><option>Idea</option><option>Research</option><option>Design</option><option>Building</option><option>Testing</option><option>Shipped</option><option>Paused</option></select></label>
+      <label class="setting-field"><span>Progress</span><input id="projectProgressInput" type="range" min="0" max="100" step="5" value="0" /></label>
+      <div class="range-value"><span>Progress</span><strong id="projectProgressValue">0%</strong></div>
+      <label class="setting-field"><span>Live / repository URL</span><input id="projectUrlInput" type="url" placeholder="https://..." /></label>
+      <label class="setting-field"><span>Next action</span><input id="projectNextInput" type="text" placeholder="The next smallest useful step" /></label>
+      <div class="modal-footer"><button id="deleteProjectBtn" class="danger-btn hidden">Delete</button><span></span><button id="saveProjectBtn" class="primary-btn">Save project</button></div>
+    </div>
+  </div>
+
+  <div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="weeklyTitle">
+    <div class="modal-backdrop" data-close="weekly"></div>
+    <div class="modal-card large-modal"><div class="modal-header"><div><div class="eyebrow" id="weeklyLabel">WEEK 1</div><h2 id="weeklyTitle">Weekly Review</h2></div><button class="icon-btn" data-close="weekly" aria-label="Close">×</button></div>
+      <div id="weeklyStats" class="review-stats"></div>
+      <div class="notes-grid">
+        <label><span>What did I actually learn?</span><textarea id="weeklyLearnedInput" rows="5"></textarea></label>
+        <label><span>What did I build?</span><textarea id="weeklyBuiltInput" rows="5"></textarea></label>
+        <label><span>What should I revise?</span><textarea id="weeklyReviseInput" rows="4"></textarea></label>
+        <label><span>What slowed me down?</span><textarea id="weeklyBlockersInput" rows="4"></textarea></label>
+        <label class="span-2"><span>Next week’s single most important outcome</span><textarea id="weeklyNextInput" rows="3"></textarea></label>
+      </div>
+      <div class="modal-footer"><span id="weeklySaveStatus" class="save-status">Saved automatically</span><button id="saveWeeklyBtn" class="primary-btn">Save weekly review</button></div>
+    </div>
+  </div>
+
+  <div id="knowledgeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="knowledgeTitle">
+    <div class="modal-backdrop" data-close="knowledge"></div>
+    <div class="modal-card"><div class="modal-header"><div><div class="eyebrow">KNOWLEDGE VAULT</div><h2 id="knowledgeTitle">New knowledge note</h2></div><button class="icon-btn" data-close="knowledge" aria-label="Close">×</button></div>
+      <label class="setting-field"><span>Concept / title</span><input id="knowledgeTitleInput" type="text" /></label>
+      <label class="setting-field"><span>Your explanation</span><textarea id="knowledgeBodyInput" rows="7" placeholder="Explain it like you're teaching your future self."></textarea></label>
+      <label class="setting-field"><span>Tags</span><input id="knowledgeTagsInput" type="text" placeholder="ML, transformers, SQL" /></label>
+      <label class="pin-row"><input id="knowledgePinnedInput" type="checkbox" /><span>Pin this note</span></label>
+      <div class="modal-footer"><button id="saveKnowledgeBtn" class="primary-btn">Save note</button></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
