@@ -1,4 +1,4 @@
-/* Learn & Build 120-day tracker v2 */
+/* Learn & Build 120-day tracker v3 — fixed */
 const ROADMAP = [
   // Phase 1 — Python + tooling
   {d:1,p:'Python & Setup',title:'Environment + learning system',desc:'Set up your workspace, repo, folders, browser bookmarks and a simple learning workflow.',tasks:['Create the 120-day GitHub repo','Install or verify Python, VS Code and Git','Create a /notes and /projects structure','Write your 4-month outcome in the learning log'],tags:['Setup','GitHub','Productivity']},
@@ -154,7 +154,22 @@ function defaultDayRecord(){ return {
   learningHours:0, buildingHours:0, revisionHours:0, completed:false, status:'open', projectId:'', pinned:false
 }; }
 function defaultState(){
-  return {version:2, theme:'dark', startDate:localISO(new Date()), dailyTarget:2, pace:'sequential', days:{}, projects:[], weeklyReviews:{}, revisionLog:{}, knowledge:[]};
+  return {
+    version:3,
+    theme:'dark',
+    startDate:localISO(new Date()),
+    dailyTarget:2,
+    pace:'sequential',
+    days:{},
+    projects:[],
+    weeklyReviews:{},
+    revisionLog:{},
+    knowledge:[],
+    focusPlans:{},
+    focusSessions:[],
+    focusTimer:{running:false,startedAt:null,remainingSec:0,durationSec:0,category:'learning',day:1},
+    questionStatus:{}
+  };
 }
 function mergeRecord(r={}){
   const out={...defaultDayRecord(),...r};
@@ -167,7 +182,7 @@ function mergeRecord(r={}){
 function migrateState(raw){
   const base=defaultState();
   if(!raw || !raw.days) return base;
-  const next={...base,...raw,version:2,days:{},projects:Array.isArray(raw.projects)?raw.projects:[],weeklyReviews:raw.weeklyReviews||{},revisionLog:raw.revisionLog||{},knowledge:Array.isArray(raw.knowledge)?raw.knowledge:[]};
+  const next={...base,...raw,version:3,days:{},projects:Array.isArray(raw.projects)?raw.projects:[],weeklyReviews:raw.weeklyReviews||{},revisionLog:raw.revisionLog||{},knowledge:Array.isArray(raw.knowledge)?raw.knowledge:[],focusPlans:raw.focusPlans&&typeof raw.focusPlans==='object'?raw.focusPlans:{},focusSessions:Array.isArray(raw.focusSessions)?raw.focusSessions:[],focusTimer:raw.focusTimer&&typeof raw.focusTimer==='object'?{...base.focusTimer,...raw.focusTimer}:base.focusTimer,questionStatus:raw.questionStatus&&typeof raw.questionStatus==='object'?raw.questionStatus:{}};
   Object.entries(raw.days||{}).forEach(([d,r])=>next.days[d]=mergeRecord(r));
   return next;
 }
@@ -188,6 +203,7 @@ function getRecord(day){ return mergeRecord(state.days[day]); }
 function dayDate(day){ const start=parseDateISO(state.startDate); start.setDate(start.getDate()+day-1); return start; }
 function fmtDate(date){ return date.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}); }
 function escapeHTML(str=''){ return String(str).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function makeId(){ return (globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function') ? globalThis.crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(36).slice(2,10)}`; }
 function compact(str='',len=100){ const s=String(str).trim(); return s.length>len?s.slice(0,len-1)+'…':s; }
 function getStatus(day){ const r=getRecord(day); return r.completed?'completed':r.status||'open'; }
 function completedCount(){ return ROADMAP.filter(d=>getStatus(d.d)==='completed').length; }
@@ -215,22 +231,185 @@ function totalWeeks(){ return Math.ceil(ROADMAP.length/7); }
 function reviewKey(day,offset){ return `${day}-${offset}`; }
 function dueReviews(){
   const cur=currentDay(); const items=[];
-  for(const d of ROADMAP){ if(getStatus(d.d)!=='completed') continue; for(const off of [1,3,7,21]){const reviewDay=d.d+off; if(reviewDay<=cur && reviewDay<=ROADMAP.length && !state.revisionLog[reviewKey(d.d,off)]) items.push({source:d.d,reviewDay,off});} }
+  for(const d of ROADMAP){
+    if(getStatus(d.d)!=='completed') continue;
+    for(const off of [1,3,7,21]){
+      const reviewDay=d.d+off;
+      if(reviewDay<=cur && reviewDay<=ROADMAP.length && !state.revisionLog[reviewKey(d.d,off)]){
+        items.push({source:d.d,reviewDay,off});
+      }
+    }
+  }
   return items.sort((a,b)=>a.reviewDay-b.reviewDay || a.source-b.source);
 }
-function markReview(item){ state.revisionLog[reviewKey(item.source,item.off)]=new Date().toISOString(); saveState(); refreshAll(); showToast(`Review logged for Day ${item.source}`); }
+function markReview(item){
+  state.revisionLog=state.revisionLog||{};
+  state.revisionLog[reviewKey(item.source,item.off)]=new Date().toISOString();
+  saveState(); refreshAll(); showToast(`Review logged for Day ${item.source}`);
+}
 function projectById(id){ return state.projects.find(p=>p.id===id); }
 function generateDayFlow(d){
-  const t=d.tasks||[];
+  const t=d?.tasks||[];
   return {
-    learn:`Study + explain: ${t.slice(0,2).join(' · ')}`,
+    learn:`Study + explain: ${t.slice(0,2).join(' · ') || 'Understand the key idea.'}`,
     practice:t[2]||'Do one focused exercise without copying a solution.',
-    build:t[3]||`Create a tiny ${d.tags?.[0]||'learning'} artifact.`,
-    ship:`Leave evidence: commit it, screenshot it, publish it, or record a clear result.`
+    build:t[3]||`Create a tiny ${d?.tags?.[0]||'learning'} artifact.`,
+    ship:'Leave evidence: commit it, screenshot it, publish it, or record a clear result.'
   };
 }
 function phaseStats(){
-  return PHASE_ORDER.map((p,i)=>{const ds=ROADMAP.filter(d=>d.p===p);const done=ds.filter(d=>getStatus(d.d)==='completed').length;const hrs=ds.reduce((s,d)=>{const r=getRecord(d.d);return s+(+r.learningHours||0)+(+r.buildingHours||0)+(+r.revisionHours||0)},0);return {p,done,total:ds.length,pct:Math.round(done/ds.length*100),hrs,i}});
+  return PHASE_ORDER.map((p,i)=>{
+    const ds=ROADMAP.filter(d=>d.p===p);
+    const done=ds.filter(d=>getStatus(d.d)==='completed').length;
+    const hrs=ds.reduce((s,d)=>{
+      const r=getRecord(d.d);
+      return s+(+r.learningHours||0)+(+r.buildingHours||0)+(+r.revisionHours||0);
+    },0);
+    return {p,done,total:ds.length,pct:ds.length?Math.round(done/ds.length*100):0,hrs,i};
+  });
+}
+function todayFocusPlan(day){
+  const hasSaved=Array.isArray(state.focusPlans?.[day]);
+  const saved=hasSaved?state.focusPlans[day]:[];
+  const d=getDay(day);
+  const fallback=[
+    d?.tasks?.[0]||'Complete the most important learning task.',
+    d?.tasks?.[1]||'Do one focused practice exercise.',
+    generateDayFlow(d||{tasks:[],tags:['learning']}).build
+  ];
+  return Array.from({length:3},(_,i)=>({
+    text:hasSaved?(saved[i]?.text||''):(fallback[i]||''),
+    done:Boolean(saved[i]?.done)
+  }));
+}
+function saveFocusPlan(day,items){
+  state.focusPlans=state.focusPlans||{};
+  state.focusPlans[day]=items.map(x=>({text:String(x.text||'').trim(),done:Boolean(x.done)}));
+  saveState();
+}
+function todayLoggedHours(day=currentDay()){
+  const r=getRecord(day);
+  return (+r.learningHours||0)+(+r.buildingHours||0)+(+r.revisionHours||0);
+}
+function scheduledDay(){
+  const days=Math.floor((Date.now()-parseDateISO(state.startDate).getTime())/86400000)+1;
+  return Math.min(ROADMAP.length,Math.max(1,days));
+}
+function catchupInfo(){
+  const scheduled=scheduledDay();
+  const skipped=ROADMAP.filter(d=>getStatus(d.d)==='skipped');
+  const openScheduled=ROADMAP.filter(d=>d.d<=scheduled && getStatus(d.d)==='open');
+  if(state.pace==='calendar'){
+    if(openScheduled.length) return {mode:'calendar',status:'behind',count:openScheduled.length,first:openScheduled[0].d,scheduled};
+    return {mode:'calendar',status:'on-track',count:0,first:null,scheduled};
+  }
+  if(skipped.length) return {mode:'sequential',status:'skipped',count:skipped.length,first:skipped[0].d,scheduled};
+  return {mode:'sequential',status:'next',count:0,first:currentDay(),scheduled};
+}
+function formatTimer(sec){
+  const s=Math.max(0,Math.ceil(sec));
+  const m=Math.floor(s/60), r=s%60;
+  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+}
+function activeTimerRemaining(){
+  const t=state.focusTimer||{};
+  if(!t.running) return Math.max(0,+t.remainingSec||0);
+  const elapsed=(Date.now()-(+t.startedAt||Date.now()))/1000;
+  return Math.max(0,(+t.remainingSec||0)-elapsed);
+}
+function focusCategoryLabel(key){ return ({learning:'Learning',building:'Building',revision:'Revision'}[key]||'Learning'); }
+function logFocusSession(){
+  const t=state.focusTimer;
+  const durationSec=+t.durationSec||0;
+  if(!durationSec) return;
+  const day=t.day||currentDay();
+  const field=`${t.category||'learning'}Hours`;
+  const r=getRecord(day);
+  r[field]=Math.round(((+r[field]||0)+(durationSec/3600))*100)/100;
+  state.days[day]=r;
+  state.focusSessions=state.focusSessions||[];
+  state.focusSessions.push({id:makeId(),day,durationSec,category:t.category||'learning',completedAt:new Date().toISOString()});
+  saveState();
+}
+function resetFocusTimer(){
+  state.focusTimer={running:false,startedAt:null,remainingSec:0,durationSec:0,category:document.getElementById('focusCategory')?.value||'learning',day:currentDay()};
+  saveState();
+  renderFocusTimer();
+}
+function finishFocusTimer(){
+  logFocusSession();
+  const label=focusCategoryLabel(state.focusTimer.category);
+  const day=state.focusTimer.day||currentDay();
+  state.focusTimer={running:false,startedAt:null,remainingSec:0,durationSec:0,category:state.focusTimer.category||'learning',day:currentDay()};
+  saveState(); refreshAll(); showToast(`Focus session logged · ${label} · Day ${day}`);
+}
+function startOrResumeFocusTimer(){
+  const t=state.focusTimer||{};
+  if(t.running){
+    const remaining=activeTimerRemaining();
+    state.focusTimer={...t,running:false,startedAt:null,remainingSec:remaining};
+    saveState(); renderFocusTimer(); return;
+  }
+  let remaining=+t.remainingSec||0;
+  let duration=+t.durationSec||0;
+  const selected=parseInt(document.getElementById('focusDuration')?.value||'25',10);
+  const category=document.getElementById('focusCategory')?.value||t.category||'learning';
+  if(remaining<=0){ duration=Math.max(5,selected)*60; remaining=duration; }
+  state.focusTimer={running:true,startedAt:Date.now(),remainingSec:remaining,durationSec:duration,category,day:currentDay()};
+  saveState(); renderFocusTimer();
+}
+function selectFocusDuration(min){
+  if(state.focusTimer?.running) return;
+  const el=document.getElementById('focusDuration');
+  if(el) el.value=String(min);
+  state.focusTimer={...(state.focusTimer||{}),remainingSec:0,durationSec:0,category:document.getElementById('focusCategory')?.value||'learning',day:currentDay(),running:false,startedAt:null};
+  saveState(); renderFocusTimer();
+}
+function renderFocusTimer(){
+  const el=document.getElementById('focusTimerCard'); if(!el) return;
+  const t=state.focusTimer||{};
+  const remaining=activeTimerRemaining();
+  const target=Math.max(0,+state.dailyTarget||0);
+  const logged=todayLoggedHours(currentDay());
+  const pct=target?Math.min(100,Math.round(logged/target*100)):0;
+  const stateLabel=t.running?'In focus':remaining>0?'Paused':'Ready';
+  const durationMin=t.durationSec?Math.round(t.durationSec/60):25;
+  const timerPct=t.durationSec?Math.min(100,Math.max(0,Math.round((1-remaining/t.durationSec)*100))):0;
+  el.innerHTML=`<div class="eyebrow">FOCUS SESSION</div>
+    <div class="productivity-card-head"><div><div class="focus-title focus-timer-value" id="focusTimerValue">${formatTimer(remaining)}</div><div class="focus-desc" id="focusTimerState">${stateLabel} · sessions log directly to today’s hours.</div></div><span class="focus-state ${t.running?'active':''}" id="focusStateBadge">${t.running?'● LIVE':stateLabel.toUpperCase()}</span></div>
+    <div class="timer-controls"><select id="focusCategory" ${t.running?'disabled':''}><option value="learning" ${t.category==='learning'?'selected':''}>Learning</option><option value="building" ${t.category==='building'?'selected':''}>Building</option><option value="revision" ${t.category==='revision'?'selected':''}>Revision</option></select><select id="focusDuration" ${t.running?'disabled':''}><option value="25" ${durationMin===25?'selected':''}>25 min</option><option value="50" ${durationMin===50?'selected':''}>50 min</option><option value="90" ${durationMin===90?'selected':''}>90 min</option></select></div>
+    <div class="timer-presets"><button class="mini-btn" data-focus-duration="25" ${t.running?'disabled':''}>25m</button><button class="mini-btn" data-focus-duration="50" ${t.running?'disabled':''}>50m</button><button class="mini-btn" data-focus-duration="90" ${t.running?'disabled':''}>90m</button></div>
+    <div class="timer-progress"><div id="focusTimerProgress" style="width:${timerPct}%"></div></div>
+    <div class="small-row"><span>Today’s target</span><strong id="focusTargetText">${fmtHours(logged)} / ${fmtHours(target)} · ${pct}%</strong></div>
+    <div class="progress-bar"><div id="focusTargetProgress" style="width:${pct}%"></div></div>
+    <div class="timer-actions"><button class="primary-btn" id="focusStartBtn">${t.running?'Pause':remaining>0?'Resume':'Start focus'}</button><button class="ghost-btn" id="focusResetBtn">Reset</button></div>`;
+}
+function renderTodayTop3(){
+  const el=document.getElementById('todayTop3Card'); if(!el) return;
+  const day=currentDay(), plan=todayFocusPlan(day), done=plan.filter(x=>x.done&&x.text).length;
+  el.innerHTML=`<div class="eyebrow">TODAY’S TOP 3</div>
+    <div class="productivity-card-head"><div><div class="focus-title">Choose the three things that matter.</div><div class="focus-desc">Keep this small. The roadmap can contain four tasks; your day should have three priorities.</div></div><span class="top3-count">${done}/3</span></div>
+    <div class="top3-list">${plan.map((x,i)=>`<div class="top3-item"><input type="checkbox" data-focus-check="${i}" ${x.done?'checked':''} aria-label="Complete priority ${i+1}"><input class="top3-input" data-focus-input="${i}" value="${escapeHTML(x.text)}" aria-label="Priority ${i+1}"></div>`).join('')}</div>
+    <div class="top3-actions"><button class="ghost-btn" id="seedTop3Btn">Use today’s roadmap</button><span class="save-status">Saved automatically</span></div>`;
+}
+function renderCatchup(){
+  const el=document.getElementById('catchupCard'); if(!el) return;
+  const info=catchupInfo();
+  let title='You’re on track',desc='',btn='Open today';
+  if(info.status==='behind'){ title=`${info.count} scheduled day${info.count===1?'':'s'} to catch up`; desc=`Calendar pace has moved to Day ${info.scheduled}, but some earlier days are still open.`; btn=`Open Day ${info.first}`; }
+  else if(info.status==='skipped'){ title=`${info.count} skipped day${info.count===1?'':'s'}`; desc='Skipped days stay available so you can deliberately catch up instead of losing the work.'; btn=`Reopen Day ${info.first}`; }
+  else { desc=state.pace==='calendar'?`Scheduled for Day ${info.scheduled}. Your next open roadmap day is ${currentDay()}.`:'Sequential pace: finish today before moving to the next day.'; }
+  el.innerHTML=`<div class="eyebrow">PACE CHECK</div><div class="focus-title">${title}</div><div class="focus-desc">${desc}</div><div class="catchup-meta"><span class="badge">${state.pace==='calendar'?'Calendar pace':'Sequential pace'}</span><span class="badge">Day ${currentDay()}</span></div><button class="secondary-btn catchup-btn" data-catchup-day="${info.first||currentDay()}">${btn}</button>`;
+}
+function tickFocusTimer(){
+  const t=state.focusTimer||{};
+  if(t.running && activeTimerRemaining()<=0){ finishFocusTimer(); return; }
+  const value=document.getElementById('focusTimerValue');
+  if(!value) return;
+  const remaining=activeTimerRemaining();
+  value.textContent=formatTimer(remaining);
+  const timerPct=t.durationSec?Math.min(100,Math.max(0,Math.round((1-remaining/t.durationSec)*100))):0;
+  const bar=document.getElementById('focusTimerProgress'); if(bar) bar.style.width=`${timerPct}%`;
 }
 function renderDashboard(){
   const done=completedCount(), pct=Math.round(done/ROADMAP.length*100), day=currentDay(), item=getDay(day), r=getRecord(day), hs=hoursSplit(), next=nextMilestone();
@@ -259,6 +438,7 @@ function renderDashboard(){
 
   document.getElementById('phaseProgress').innerHTML=phaseStats().map(s=>`<div class="phase-card"><div class="eyebrow">PHASE ${s.i+1}</div><h3>${escapeHTML(s.p)}</h3><div class="phase-meta">${s.done}/${s.total} days · ${fmtHours(s.hrs)}</div><div class="progress-bar"><div style="width:${s.pct}%"></div></div><div class="small-row"><span>${s.pct}% complete</span><span>${s.done}/${s.total}</span></div></div>`).join('');
   document.getElementById('heatmap').innerHTML=ROADMAP.map(d=>{const st=getStatus(d.d), prg=progressFor(d.d), cur=d.d===day; return `<button class="hm-day ${st==='completed'?'done':st==='skipped'?'skipped':prg>0?'partial':''} ${cur?'current':''}" title="Day ${d.d} — ${escapeHTML(d.title)}" data-day="${d.d}" aria-label="Day ${d.d}"></button>`}).join('');
+  renderTodayTop3(); renderFocusTimer(); renderCatchup();
   document.getElementById('dashboardProjects').innerHTML=renderProjectMiniCards();
   const recent=ROADMAP.slice(Math.max(0,day-3),Math.min(ROADMAP.length,day+2));
   document.getElementById('recentDays').innerHTML=recent.map(d=>{const rr=getRecord(d.d),st=getStatus(d.d);return `<div class="recent-day" data-day="${d.d}"><span class="day-num">DAY ${d.d} ${st==='completed'?'<span class="done-dot"></span>':''}</span><strong>${escapeHTML(d.title)}</strong><p>${escapeHTML(compact(rr.learned||rr.built||d.desc,95))}</p></div>`}).join('');
@@ -286,11 +466,34 @@ function renderReviews(){
   document.getElementById('weeklyReviews').innerHTML=Array.from({length:totalWeeks()},(_,i)=>i+1).map(w=>{const rr=state.weeklyReviews[w]||{};const range=weekRange(w);const done=ROADMAP.slice(range.start-1,range.end).filter(d=>getStatus(d.d)==='completed').length;return `<article class="review-card" data-week="${w}"><div class="eyebrow">WEEK ${w}</div><h3>Days ${range.start}–${range.end}</h3><p>${done}/${range.end-range.start+1} days complete ${rr.next?`· Next outcome recorded`:''}</p><div class="small-row" style="margin-top:12px"><span>${rr.savedAt?'Reviewed':'Not reviewed'}</span><span>Open →</span></div></article>`}).join('');
 }
 function renderKnowledge(){
-  const q=(document.getElementById('knowledgeSearch').value||'').toLowerCase(), filter=document.getElementById('knowledgeFilter').value;
-  const derived=ROADMAP.map(d=>({id:`day-${d.d}`,sourceDay:d.d,title:`Day ${d.d} — ${d.title}`,body:getRecord(d.d).learned,tags:d.tags,pinned:getRecord(d.d).pinned,derived:true})).filter(x=>x.body);
+  const q=(document.getElementById('knowledgeSearch').value||'').toLowerCase().trim();
+  const filter=document.getElementById('knowledgeFilter').value;
+  const unresolvedDayIds=new Set();
+  ROADMAP.forEach(d=>{
+    const record=getRecord(d.d);
+    if((record.questions||[]).some((_,i)=>!(state.questionStatus&&state.questionStatus[`${d.d}-${i}`]))) unresolvedDayIds.add(d.d);
+  });
+  const derived=ROADMAP.map(d=>({
+    id:`day-${d.d}`,
+    sourceDay:d.d,
+    title:`Day ${d.d} — ${d.title}`,
+    body:getRecord(d.d).learned,
+    tags:d.tags,
+    pinned:getRecord(d.d).pinned,
+    derived:true
+  })).filter(x=>x.body);
   const all=[...state.knowledge,...derived];
-  const filtered=all.filter(x=>{const hay=[x.title,x.body,...(x.tags||[])].join(' ').toLowerCase();return (!q||hay.includes(q))&&(filter==='questions' ? false : (filter==='all'||x.pinned));});
-  const list=document.getElementById('knowledgeList'); list.innerHTML=filtered.length?filtered.map(x=>`<article class="knowledge-card"><div class="knowledge-head"><div><div class="eyebrow">${x.derived?'DAILY NOTE':'VAULT NOTE'}</div><h3>${escapeHTML(x.title)} ${x.pinned?'· 📌':''}</h3></div>${x.sourceDay?`<button class="link-btn" data-day="${x.sourceDay}">Open day</button>`:' '}</div><p>${escapeHTML(x.body)}</p><div class="tag-row">${(x.tags||[]).map(t=>`<span class="badge">${escapeHTML(t)}</span>`).join('')}</div></article>`).join(''):`<div class="empty-state">No knowledge notes match your search. Pin your best explanations from a day or add a fresh note.</div>`;
+  const filtered=all.filter(x=>{
+    const hay=[x.title,x.body,...(x.tags||[])].join(' ').toLowerCase();
+    const matchesSearch=!q||hay.includes(q);
+    const matchesFilter=
+      filter==='all' ? true :
+      filter==='pinned' ? !!x.pinned :
+      filter==='questions' ? !!x.sourceDay && unresolvedDayIds.has(x.sourceDay) : true;
+    return matchesSearch&&matchesFilter;
+  });
+  const list=document.getElementById('knowledgeList');
+  list.innerHTML=filtered.length?filtered.map(x=>`<article class="knowledge-card"><div class="knowledge-head"><div><div class="eyebrow">${x.derived?'DAILY NOTE':'VAULT NOTE'}</div><h3>${escapeHTML(x.title)} ${x.pinned?'· 📌':''}</h3></div>${x.sourceDay?`<button class="link-btn" data-day="${x.sourceDay}">Open day</button>`:' '}</div><p>${escapeHTML(x.body)}</p><div class="tag-row">${(x.tags||[]).map(t=>`<span class="badge">${escapeHTML(t)}</span>`).join('')}</div></article>`).join(''):`<div class="empty-state"><strong>No knowledge notes match this view.</strong><span>Pin your best explanations from a day or add a fresh note.</span></div>`;
   renderQuestions();
 }
 function renderQuestions(){
@@ -298,6 +501,8 @@ function renderQuestions(){
   ROADMAP.forEach(d=>getRecord(d.d).questions.forEach((q,i)=>questions.push({id:`${d.d}-${i}`,day:d.d,text:q,resolved:false})));
   if(state.questionStatus) questions.forEach(q=>q.resolved=!!state.questionStatus[q.id]);
   const open=questions.filter(q=>!q.resolved);
+  const countEl=document.getElementById('knowledgeQuestionCount');
+  if(countEl) countEl.textContent=open.length;
   list.innerHTML=open.length?open.map(q=>`<div class="question-item"><div><p>${escapeHTML(q.text)}</p><small>Day ${q.day} · ${escapeHTML(getDay(q.day).title)}</small></div><button class="mini-btn" data-resolve-question="${q.id}">Resolve</button></div>`).join(''):`<div class="empty-state" style="padding:20px">No open questions 🎉</div>`;
 }
 function renderJournal(){
@@ -327,13 +532,30 @@ function reopenDay(){const r=getRecord(activeDay);r.status='open';state.days[act
 function openSettings(){document.getElementById('startDateInput').value=state.startDate||localISO(new Date());document.getElementById('dailyTargetInput').value=state.dailyTarget??2;document.getElementById('paceInput').value=state.pace||'sequential';document.getElementById('settingsModal').classList.remove('hidden');}
 function saveSettings(){state.startDate=document.getElementById('startDateInput').value||localISO(new Date());state.dailyTarget=parseFloat(document.getElementById('dailyTargetInput').value)||2;state.pace=document.getElementById('paceInput').value||'sequential';saveState();closeModal('settingsModal');refreshAll();showToast('Settings saved');}
 function openProjectModal(projectId=''){ editingProjectId=projectId||null;const p=projectById(projectId);document.getElementById('projectTitle').textContent=p?'Edit project':'New project';document.getElementById('projectNameInput').value=p?.name||'';document.getElementById('projectProblemInput').value=p?.problem||'';document.getElementById('projectStatusInput').value=p?.status||'Idea';document.getElementById('projectProgressInput').value=p?.progress||0;document.getElementById('projectProgressValue').textContent=`${p?.progress||0}%`;document.getElementById('projectUrlInput').value=p?.url||'';document.getElementById('projectNextInput').value=p?.next||'';document.getElementById('deleteProjectBtn').classList.toggle('hidden',!p);document.getElementById('projectModal').classList.remove('hidden');}
-function saveProject(){const name=document.getElementById('projectNameInput').value.trim();if(!name){showToast('Give the project a name');return}const old=editingProjectId?projectById(editingProjectId):null;const p={id:editingProjectId||crypto.randomUUID(),name,problem:document.getElementById('projectProblemInput').value.trim(),status:document.getElementById('projectStatusInput').value,progress:+document.getElementById('projectProgressInput').value||0,url:document.getElementById('projectUrlInput').value.trim(),next:document.getElementById('projectNextInput').value.trim(),createdAt:old?.createdAt||new Date().toISOString()};if(old)Object.assign(old,p);else state.projects.push(p);saveState();closeModal('projectModal');refreshAll();showToast('Project saved');}
+function saveProject(){const name=document.getElementById('projectNameInput').value.trim();if(!name){showToast('Give the project a name');return}const old=editingProjectId?projectById(editingProjectId):null;const p={id:editingProjectId||makeId(),name,problem:document.getElementById('projectProblemInput').value.trim(),status:document.getElementById('projectStatusInput').value,progress:+document.getElementById('projectProgressInput').value||0,url:document.getElementById('projectUrlInput').value.trim(),next:document.getElementById('projectNextInput').value.trim(),createdAt:old?.createdAt||new Date().toISOString()};if(old)Object.assign(old,p);else state.projects.push(p);saveState();closeModal('projectModal');refreshAll();showToast('Project saved');}
 function deleteProject(){if(!editingProjectId)return;if(!confirm('Delete this project? Your day notes will remain.'))return;state.projects=state.projects.filter(p=>p.id!==editingProjectId);Object.values(state.days).forEach(r=>{if(r.projectId===editingProjectId)r.projectId=''});saveState();closeModal('projectModal');refreshAll();showToast('Project deleted');}
 function openWeekly(week){editingWeek=week;const range=weekRange(week),rr=state.weeklyReviews[week]||{};const days=ROADMAP.slice(range.start-1,range.end);const done=days.filter(d=>getStatus(d.d)==='completed').length;const hrs=days.reduce((s,d)=>{const r=getRecord(d.d);return s+(+r.learningHours||0)+(+r.buildingHours||0)+(+r.revisionHours||0)},0);document.getElementById('weeklyLabel').textContent=`WEEK ${week}`;document.getElementById('weeklyTitle').textContent=`Days ${range.start}–${range.end}`;document.getElementById('weeklyStats').innerHTML=`<div class="review-stat"><span>Completed</span><strong>${done}/${days.length}</strong></div><div class="review-stat"><span>Hours</span><strong>${fmtHours(hrs)}</strong></div><div class="review-stat"><span>Projects</span><strong>${new Set(days.map(d=>getRecord(d.d).projectId).filter(Boolean)).size}</strong></div><div class="review-stat"><span>Milestone</span><strong>${done===days.length?'✓':'—'}</strong></div>`;document.getElementById('weeklyLearnedInput').value=rr.learned||'';document.getElementById('weeklyBuiltInput').value=rr.built||'';document.getElementById('weeklyReviseInput').value=rr.revise||'';document.getElementById('weeklyBlockersInput').value=rr.blockers||'';document.getElementById('weeklyNextInput').value=rr.next||'';document.getElementById('weeklySaveStatus').textContent=rr.savedAt?'Saved previously':'Not reviewed yet';document.getElementById('weeklyModal').classList.remove('hidden');}
 function saveWeekly(){const r={learned:document.getElementById('weeklyLearnedInput').value,built:document.getElementById('weeklyBuiltInput').value,revise:document.getElementById('weeklyReviseInput').value,blockers:document.getElementById('weeklyBlockersInput').value,next:document.getElementById('weeklyNextInput').value,savedAt:new Date().toISOString()};state.weeklyReviews[editingWeek]=r;saveState();document.getElementById('weeklySaveStatus').textContent='Saved just now';renderReviews();showToast(`Week ${editingWeek} review saved`);}
 function addKnowledge(){editingKnowledgeId=null;document.getElementById('knowledgeTitle').textContent='New knowledge note';document.getElementById('knowledgeTitleInput').value='';document.getElementById('knowledgeBodyInput').value='';document.getElementById('knowledgeTagsInput').value='';document.getElementById('knowledgePinnedInput').checked=false;document.getElementById('knowledgeModal').classList.remove('hidden');}
-function saveKnowledge(){const title=document.getElementById('knowledgeTitleInput').value.trim(),body=document.getElementById('knowledgeBodyInput').value.trim();if(!title||!body){showToast('Add a title and explanation');return}state.knowledge.push({id:crypto.randomUUID(),title,body,tags:document.getElementById('knowledgeTagsInput').value.split(',').map(s=>s.trim()).filter(Boolean),pinned:document.getElementById('knowledgePinnedInput').checked,createdAt:new Date().toISOString()});saveState();closeModal('knowledgeModal');refreshAll();showToast('Knowledge note saved');}
-function exportBackup(){const payload={app:'learn-build-120',version:2,exportedAt:new Date().toISOString(),state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`learn-build-120-backup-${localISO(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500);showToast('Backup exported');}
+function saveKnowledge(){const title=document.getElementById('knowledgeTitleInput').value.trim(),body=document.getElementById('knowledgeBodyInput').value.trim();if(!title||!body){showToast('Add a title and explanation');return}state.knowledge.push({id:makeId(),title,body,tags:document.getElementById('knowledgeTagsInput').value.split(',').map(s=>s.trim()).filter(Boolean),pinned:document.getElementById('knowledgePinnedInput').checked,createdAt:new Date().toISOString()});saveState();closeModal('knowledgeModal');refreshAll();showToast('Knowledge note saved');}
+function toggleFocusItem(index,checked){
+  const day=currentDay(), plan=todayFocusPlan(day);
+  plan[index]={...plan[index],done:checked};
+  saveFocusPlan(day,plan); renderTodayTop3();
+}
+function updateFocusText(index,text){
+  const day=currentDay(), plan=todayFocusPlan(day);
+  plan[index]={...plan[index],text};
+  state.focusPlans=state.focusPlans||{}; state.focusPlans[day]=plan.map(x=>({text:String(x.text||'').trim(),done:Boolean(x.done)}));
+  saveState();
+}
+function seedTop3(){
+  const d=getDay(currentDay()); if(!d) return;
+  const items=(d.tasks||[]).slice(0,3).map((text,i)=>({text,done:false}));
+  while(items.length<3) items.push({text:'',done:false});
+  saveFocusPlan(currentDay(),items); renderTodayTop3(); showToast('Today’s Top 3 seeded from the roadmap');
+}
+function exportBackup(){const payload={app:'learn-build-120',version:3,exportedAt:new Date().toISOString(),state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`learn-build-120-backup-${localISO(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500);showToast('Backup exported');}
 function importBackup(file){const reader=new FileReader();reader.onload=()=>{try{const payload=JSON.parse(reader.result);if(!payload.state||!payload.state.days)throw new Error('Invalid backup');state=migrateState(payload.state);saveState();applyTheme();refreshAll();showToast('Backup imported')}catch(e){showToast('That backup file is not valid')}};reader.readAsText(file);}
 function applyTheme(){document.documentElement.dataset.theme=state.theme;document.getElementById('themeBtn').textContent=state.theme==='dark'?'☼':'☾';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(showToast.t);showToast.t=setTimeout(()=>t.classList.remove('show'),1900);}
@@ -348,6 +570,12 @@ function bind(){
     const editProj=e.target.closest('[data-edit-project]'); if(editProj){openProjectModal(editProj.dataset.editProject);return;}
     const review=e.target.closest('[data-review-source]'); if(review){markReview({source:+review.dataset.reviewSource,off:+review.dataset.reviewOff});return;}
     const resolve=e.target.closest('[data-resolve-question]'); if(resolve){state.questionStatus=state.questionStatus||{};state.questionStatus[resolve.dataset.resolveQuestion]=true;saveState();refreshAll();showToast('Question marked resolved');return;}
+    const focusCheck=e.target.closest('[data-focus-check]'); if(focusCheck){toggleFocusItem(+focusCheck.dataset.focusCheck,focusCheck.checked);return;}
+    const focusPreset=e.target.closest('[data-focus-duration]'); if(focusPreset){selectFocusDuration(+focusPreset.dataset.focusDuration);return;}
+    const catchup=e.target.closest('[data-catchup-day]'); if(catchup){openDay(+catchup.dataset.catchupDay);return;}
+    const focusSeed=e.target.closest('#seedTop3Btn'); if(focusSeed){seedTop3();return;}
+    const focusStart=e.target.closest('#focusStartBtn'); if(focusStart){startOrResumeFocusTimer();return;}
+    const focusReset=e.target.closest('#focusResetBtn'); if(focusReset){resetFocusTimer();return;}
     const week=e.target.closest('[data-week]'); if(week){openWeekly(+week.dataset.week);return;}
     const close=e.target.closest('[data-close]'); if(close){closeModal({day:'dayModal',settings:'settingsModal',project:'projectModal',weekly:'weeklyModal',knowledge:'knowledgeModal'}[close.dataset.close]);return;}
   });
@@ -373,7 +601,12 @@ function bind(){
   document.getElementById('resetBtn').addEventListener('click',()=>{if(confirm('Reset every day, note, project, review and question in this browser?')){state=defaultState();saveState();applyTheme();refreshAll();showToast('Progress reset');}});
   document.getElementById('searchInput').addEventListener('input',renderRoadmap);document.getElementById('phaseFilter').addEventListener('change',renderRoadmap);document.getElementById('statusFilter').addEventListener('change',renderRoadmap);document.getElementById('knowledgeSearch').addEventListener('input',renderKnowledge);document.getElementById('knowledgeFilter').addEventListener('change',renderKnowledge);
   ['learnedInput','practiceInput','builtInput','shippedInput','blockersInput','questionsInput','learningHoursInput','buildingHoursInput','revisionHoursInput','dayProjectInput','pinKnowledgeInput'].forEach(id=>{const el=document.getElementById(id);el.addEventListener('input',saveDayRecordFromModal);el.addEventListener('change',saveDayRecordFromModal);});
+  document.addEventListener('input',e=>{ const input=e.target.closest('[data-focus-input]'); if(input) updateFocusText(+input.dataset.focusInput,input.value); });
+  document.addEventListener('change',e=>{
+    if(e.target.id==='focusCategory'){state.focusTimer={...(state.focusTimer||{}),category:e.target.value};saveState();return;}
+    if(e.target.id==='focusDuration' && !state.focusTimer?.running){state.focusTimer={...(state.focusTimer||{}),remainingSec:0,durationSec:0,category:document.getElementById('focusCategory')?.value||'learning',day:currentDay(),running:false,startedAt:null};saveState();renderFocusTimer();}
+  });
   document.querySelectorAll('[data-close]').forEach(e=>{});
   window.addEventListener('keydown',e=>{if(e.key==='Escape')['dayModal','settingsModal','projectModal','weeklyModal','knowledgeModal'].forEach(closeModal)});
 }
-document.addEventListener('DOMContentLoaded',bind);
+document.addEventListener('DOMContentLoaded',()=>{bind();setInterval(tickFocusTimer,1000);});

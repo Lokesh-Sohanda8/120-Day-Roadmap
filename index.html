@@ -87,6 +87,12 @@
           <div class="panel-card revision-card" id="revisionQueueCard"></div>
         </div>
 
+        <div class="productivity-grid">
+          <section class="panel-card productivity-card top3-card" id="todayTop3Card"></section>
+          <section class="panel-card productivity-card focus-timer-card" id="focusTimerCard"></section>
+          <section class="panel-card productivity-card catchup-card" id="catchupCard"></section>
+        </div>
+
         <div class="section-heading"><div><div class="eyebrow">PHASE HEALTH</div><h2>Where your time is going</h2></div></div>
         <div id="phaseProgress" class="phase-grid"></div>
 
@@ -122,11 +128,42 @@
         <div id="weeklyReviews" class="weekly-grid"></div>
       </section>
 
-      <section id="knowledgeView" class="view">
-        <div class="page-head-row"><div><div class="eyebrow">YOUR SECOND BRAIN</div><h2>Knowledge vault</h2><p>Search the explanations, insights and questions you created during the journey.</p></div><button id="addKnowledgeBtn" class="secondary-btn">+ Knowledge note</button></div>
+      <section id="knowledgeView" class="view knowledge-page-view">
+        <div class="knowledge-intro">
+          <div>
+            <div class="eyebrow">YOUR SECOND BRAIN</div>
+            <h2>Knowledge vault</h2>
+            <p>Search the explanations, insights and questions you created during the journey.</p>
+          </div>
+          <button id="addKnowledgeBtn" class="primary-btn">+ Knowledge note</button>
+        </div>
+
         <div class="knowledge-layout">
-          <div><div class="toolbar simple-toolbar"><input id="knowledgeSearch" type="search" placeholder="Search your notes, topics, tags..." /><select id="knowledgeFilter"><option value="all">All</option><option value="pinned">Pinned</option><option value="questions">Open questions</option></select></div><div id="knowledgeList" class="knowledge-list"></div></div>
-          <aside class="questions-panel"><div class="eyebrow">QUESTION BACKLOG</div><h3>Things to resolve</h3><div id="questionsList"></div></aside>
+          <div class="knowledge-main">
+            <div class="knowledge-toolbar">
+              <div class="knowledge-search">
+                <span class="knowledge-search-icon" aria-hidden="true">⌕</span>
+                <input id="knowledgeSearch" type="search" placeholder="Search your notes, topics, tags..." autocomplete="off" />
+              </div>
+              <select id="knowledgeFilter" aria-label="Filter knowledge notes">
+                <option value="all">All notes</option>
+                <option value="pinned">Pinned</option>
+                <option value="questions">Open questions</option>
+              </select>
+            </div>
+            <div id="knowledgeList" class="knowledge-list"></div>
+          </div>
+
+          <aside class="questions-panel knowledge-questions-panel">
+            <div class="questions-panel-head">
+              <div>
+                <div class="eyebrow">QUESTION BACKLOG</div>
+                <h3>Things to resolve</h3>
+              </div>
+              <span id="knowledgeQuestionCount" class="question-count">0</span>
+            </div>
+            <div id="questionsList"></div>
+          </aside>
         </div>
       </section>
 
